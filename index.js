@@ -16,12 +16,10 @@ const getData = async () => {
 	}
 };
 
-const submitData = async (assignmentId, mostUsedJargons) => {
-	let res;
-
-	for (const jargon of mostUsedJargons) {
-		try {
-			res = await fetch(baseUrl, {
+const submitData = (assignmentId, mostUsedJargons) => {
+	const getJargonResponse = (jargon) => {
+		return new Promise((resolve, reject) => {
+			fetch(baseUrl, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -31,16 +29,26 @@ const submitData = async (assignmentId, mostUsedJargons) => {
 					answer: jargon,
 				}),
 			})
-		} catch {
-			console.error('Failed to submit the data');
-		}
+				.then((response) => {
+					if (!response.ok) {
+						console.error('Failed to submit the data');
+						reject(new Error('Failed to submit the data'));
+					}
+					return response.json();
+				})
+				.then((data) => {
+					console.log(`Response for the jargon "${jargon}":`);
+					console.log(data);
+					resolve(data);
+				})
+				.catch((error) => reject(error));
+		});
+	};
 
-		const data = await res.json();
+	const promises = mostUsedJargons.map(getJargonResponse);
 
-		console.log(`Response for the jargon "${jargon}":`);
-		console.log(data);
-	}
-}
+	return Promise.all(promises);
+};
 
 const analyseData = async () => {
 	const { data = [], assignmentId = '' } = await getData();
