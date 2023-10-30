@@ -1,31 +1,25 @@
 const baseUrl = "https://one00x-data-analysis.onrender.com/assignment";
 
 const getData = async () => {
-	let response;
-	let data;
-
 	try {
-		response = await fetch(`${baseUrl}?email=engineer.rohit18patil@gmail.com`);
-		data = await response.json();
+		const response = await fetch(`${baseUrl}?email=engineer.rohit18patil@gmail.com`);
+		const data = await response.json();
+		const assignmentId = response.headers.get('x-assignment-id');
+
+		return {
+			assignmentId,
+			data,
+		}
 	} catch (err) {
 		console.error("Error: " + err.message);
 		return null;
 	}
-
-	const assignmentId = response.headers.get('x-assignment-id');
-
-	return {
-		assignmentId,
-		data,
-	}
 };
 
-const submitData = async (assignmentId, mostUsedJargons) => {
-	let res;
-
-	for (const jargon of mostUsedJargons) {
-		try {
-			res = await fetch(baseUrl, {
+const submitData = (assignmentId, mostUsedJargons) => {
+	const getJargonResponse = (jargon) => {
+		return new Promise((resolve, reject) => {
+			fetch(baseUrl, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -35,39 +29,58 @@ const submitData = async (assignmentId, mostUsedJargons) => {
 					answer: jargon,
 				}),
 			})
-		} catch {
-			console.error('Failed to submit the data');
-		}
+				.then((response) => {
+					if (!response.ok) {
+						console.error('Failed to submit the data');
+						reject(new Error('Failed to submit the data'));
+					}
+					return response.json();
+				})
+				.then((data) => {
+					console.log(`Response for the jargon "${jargon}":`);
+					console.log(data);
+					resolve(data);
+				})
+				.catch((error) => reject(error));
+		});
+	};
 
-		const data = await res.json();
+	const promises = mostUsedJargons.map(getJargonResponse);
 
-		console.log(`Response for the jargon "${jargon}":`);
-		console.log(data);
-	}
-}
+	return Promise.all(promises);
+};
 
 const analyseData = async () => {
-	const { data = '', assignmentId = '' } = await getData();
+	const { data = [], assignmentId = '' } = await getData();
 
-	let marketingTermsObject = {};
+	let jargonTerms = new Map();
 
 	data.forEach((item) => {
-		if (marketingTermsObject.hasOwnProperty(item)) {
-			marketingTermsObject[item] += 1;
+		if (jargonTerms.has(item)) {
+			const jargonCount = jargonTerms.get(item);
+			jargonTerms.set(item, jargonCount + 1);
 		} else {
-			marketingTermsObject[item] = 1;
+			jargonTerms.set(item, 1);
 		}
 	})
 
-	const termUsedMaxTimes = Math.max(...Object.values(marketingTermsObject));
+	let jargonMaxCount = 1;
+
+	for (const count of jargonTerms.values()) {
+		if (count > jargonMaxCount) {
+			jargonMaxCount = count;
+		}
+	}
 
 	let mostUsedJargons = [];
 
-	for (const [phrase, phraseCount] of Object.entries(marketingTermsObject)) {
-		if (phraseCount === termUsedMaxTimes) {
-			mostUsedJargons.push(phrase);
+	jargonTerms.forEach((value, key) => {
+		if (value === jargonMaxCount) {
+			mostUsedJargons.push(key);
 		}
-	}
+	})
+
+	console.log({ mostUsedJargons });
 
 	await submitData(assignmentId, mostUsedJargons);
 }
